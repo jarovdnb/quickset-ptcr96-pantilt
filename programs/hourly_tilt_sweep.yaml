@@ -1,0 +1,35 @@
+schema_version: 1
+type: single
+name: hourly_tilt_plus_daily_scan
+defaults:
+  try: 1
+
+#   Two independently-scheduled sweeps in one program. Each sweep is its own
+#   back-to-back point sequence (no per-point wait, same as a plain single
+#   series) with its own repeat_minutes/initial_startdate_pantilt grid. Only
+#   one sweep runs at a time (one physical positioner); if two are due at
+#   once the daemon runs whichever is listed first, and never skips a sweep
+#   for lateness -- a missed occurrence just runs once the daemon catches up.
+#
+#   Set each initial_startdate_pantilt to the actual UTC time you want that
+#   sweep's grid anchored to, right before uploading/running the program.
+#   On the RPi: date -u '+%Y-%m-%d %H:%M:%S'
+sweeps:
+  - name: hourly_tilt_sweep
+    initial_startdate_pantilt: '2026-08-21 11:50:00'
+    repeat_minutes: 60
+    points:
+      - {pan_deg: 0, tilt_deg: 120}
+      - {pan_deg: 0, tilt_deg: 60}
+      - {pan_deg: 0, tilt_deg: 55}
+      - {pan_deg: 0, tilt_deg: 50}
+      - {pan_deg: 0, tilt_deg: 45}
+      - {pan_deg: 0, tilt_deg: 40}
+      - {pan_deg: 0, tilt_deg: 35}
+      - {pan_deg: 0, tilt_deg: 30}
+      - {pan_deg: 0, tilt_deg: 25}
+      - {pan_deg: 0, tilt_deg: 20}
+      - {pan_deg: 0, tilt_deg: 15}
+      - {pan_deg: 0, tilt_deg: 10}
+      - {pan_deg: 0, tilt_deg: 5}
+      - {pan_deg: 0, tilt_deg: 0}

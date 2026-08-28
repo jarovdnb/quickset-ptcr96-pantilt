@@ -1,0 +1,15 @@
+schema_version: 1
+type: automated
+name: test_automated_series2
+initial_startdate_pantilt: '2025-04-07 12:00:00'
+defaults:
+  try: 1
+points:
+  - pan_deg: 0
+    tilt_deg: 0
+    repeated_minutes: 5
+    offset_sec: 0
+  - pan_deg: 15
+    tilt_deg: 5
+    repeated_minutes: 10
+    offset_sec: 120

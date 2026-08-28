@@ -1,0 +1,14 @@
+[Unit]
+Description=Pan-Tilt Service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/pi/quickset-ptcr96-pantilt/pantilt.py
+WorkingDirectory=/home/pi/quickset-ptcr96-pantilt
+Restart=always
+RestartSec=30
+User=pi
+Environment=DISPLAY=:0
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pan-Tilt Control</title>
+    <style>
+        .header {
+            text-align: center;
+            padding: 5px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1000;
+            border-bottom: 3px solid #9e9e9e;
+            background-color: #323E4C;
+        }
+        .app-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 0px;
+            padding: 0px;
+        }
+        body, h1, form, select, input, button {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            font-family: Arial, sans-serif;
+            max-width: 100%;
+        }
+        body {
+            margin-top: 90px;
+            background-color: #1B2938;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 500px;
+            margin: 20px auto;
+            background: #f8f1f1;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(153, 153, 153, 0.589);
+        }
+        p {
+            color: #d1d1d1;
+            font-size: 20px;
+            text-align: center;
+            margin: 2px;
+        }
+        h1 {
+            color: #2599BC;
+            margin-bottom: 20px;
+            font-size: 24px;
+            text-align: center;
+        }
+        h2 {
+            color: #f8f8f8;
+            font-size: 40px;
+            text-align: center;
+            margin: 2px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        form input,
+        form select {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            margin-bottom: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        form label {
+            display: block;
+            width: 100%;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        button {
+            background-color: #0056b3;
+            color: #fff;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #004494;
+        }
+        #pantiltToggleBtn {
+            background-color: #007d00;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            display: block;
+            margin: 20px auto;
+        }
+        #pantiltToggleBtn:hover {
+            background-color: #a4e690;
+        }
+        #singleMeasureBtn {
+            background-color: #007d00;
+            color: white;
+            width: 100%;
+            text-align: center;
+        }
+        #singleMeasureBtn:hover {
+            background-color: #006400;
+        }
+        #output {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background-color: #e9ecef;
+            border-bottom: 3px solid #0056b3;
+            padding: 10px 20px;
+            color: #333;
+            text-align: center;
+            z-index: 9999;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        .timer-box {
+            margin-top: 10px;
+            background-color: #f3f3f3;
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        /* *** Pan-tilt *** */
+        #pantiltStatusLine {
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+        }
+        .angles-rel {
+            font-size: 26px;
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+            margin-top: 10px;
+        }
+        .angles-abs {
+            color: #9e9e9e;
+            font-size: 12px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .grey-note {
+            color: #9e9e9e;
+            font-size: 12px;
+            text-align: center;
+        }
+        .limit-hint {
+            color: #333;
+            font-weight: bold;
+            font-size: 12px;
+            text-align: center;
+            margin-bottom: 3px;
+        }
+        .card-disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+        .jog-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+            margin: 10px 0;
+        }
+        .jog-grid button {
+            margin-top: 0;
+            padding: 10px 0;
+        }
+        #programDetails table, #upcomingStepsTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+        #programDetails th, #programDetails td, #upcomingStepsTable th, #upcomingStepsTable td {
+            border: 1px solid #ccc;
+            padding: 4px;
+            text-align: center;
+        }
+        tr.point-warn {
+            background-color: #ffe08a;
+        }
+        tr.point-error {
+            background-color: #ff9d9d;
+        }
+        #pantiltFaultContainer {
+            background-color: #ff2323;
+        }
+        #pantiltFaultContainer h1, #pantiltFaultContainer p {
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>Quickset Pan-Tilt</h2>
+        <div class="app-title">
+            <p>Pan-Tilt Control</p>
+        </div>
+    </div>
+
+    <div id="output" style="display:none;"></div>
+
+    <div class="container">
+        <h1>Pan-Tilt Module</h1>
+        <button id="pantiltToggleBtn" onclick="togglePantiltModule()">Enable Pan-Tilt Module</button>
+        <div id="pantiltStatusLine">Module disabled</div>
+        <div id="pantiltAngles" style="display:none;">
+            <div class="angles-rel">pan <span id="panRel">-</span>&deg; &nbsp; tilt <span id="tiltRel">-</span>&deg;<span id="movingIndicator"></span></div>
+            <div class="angles-abs">absolute: pan <span id="panAbs">-</span>&deg; / tilt <span id="tiltAbs">-</span>&deg;</div>
+            <div class="angles-abs" id="homeLine">home: pan <span id="homePanAbs">-</span>&deg; / tilt <span id="homeTiltAbs">-</span>&deg; (absolute)</div>
+        </div>
+    </div>
+
+    <div id="pantiltFaultContainer" class="container" style="display:none;">
+        <h1>Pan-Tilt Fault</h1>
+        <p id="pantiltFaultText" style="font-size:14px;"></p>
+        <button id="clearFaultBtn" onclick="clearPantiltFault()" style="display:block; margin:10px auto;">Clear Fault</button>
+    </div>
+
+    <div id="pantiltCalibrationCard" class="container" style="display:none;">
+        <h1>Pan-Tilt Calibration</h1>
+        <form id="pantiltCalibrationForm">
+            <div class="form-group">
+                <label for="stepSize">Step size (&deg;):</label>
+                <select id="stepSize">
+                    <option value="0.1">0.1</option>
+                    <option value="1" selected>1</option>
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                </select>
+            </div>
+            <div class="jog-grid">
+                <div></div>
+                <button type="button" onclick="stepPantilt(0, 1)">Tilt &#9650;</button>
+                <div></div>
+                <button type="button" onclick="stepPantilt(-1, 0)">&#9664; Pan</button>
+                <button type="button" id="homeJogBtn" onclick="goHomePantilt()">Home</button>
+                <button type="button" onclick="stepPantilt(1, 0)">Pan &#9654;</button>
+                <div></div>
+                <button type="button" onclick="stepPantilt(0, -1)">Tilt &#9660;</button>
+                <div></div>
+            </div>
+            <div class="form-group">
+                <button type="button" id="singleMeasureBtn" onclick="takeSingleMeasurement()">Take Single Measurement</button>
+            </div>
+            <div class="form-group">
+                <label>Go to relative position (&deg;):</label>
+                <div style="display: flex; gap: 5px;">
+                    <div style="flex:1">
+                        <div id="panLimitsLine" class="limit-hint"></div>
+                        <input type="number" id="gotoPan" placeholder="Pan" step="0.1" style="width:100%">
+                    </div>
+                    <div style="flex:1">
+                        <div id="tiltLimitsLine" class="limit-hint"></div>
+                        <input type="number" id="gotoTilt" placeholder="Tilt" step="0.1" style="width:100%">
+                    </div>
+                </div>
+                <button type="button" onclick="movePantiltTo()">Move</button>
+            </div>
+        </form>
+
+        <details>
+            <summary style="cursor:pointer;">Show advanced settings</summary>
+            <form id="pantiltSettingsForm" style="margin-top:10px;">
+                <div class="form-group">
+                    <label><input type="checkbox" id="unlockHome" style="width:auto; margin-right:5px;">Unlock home position</label>
+                    <button type="button" onclick="setHomePosition()">Set current position as Home Position</button>
+                </div>
+                <div class="form-group">
+                    <label>Mounting orientation (mounted upside-down or reversed flips the +/- sign):</label>
+                    <label><input type="checkbox" id="pan_invert" style="width:auto; margin-right:5px;" {% if config.get('pantilt', {}).get('pan_invert', 0) == 1 %}checked{% endif %}>Invert pan</label>
+                    <label><input type="checkbox" id="tilt_invert" style="width:auto; margin-right:5px;" {% if config.get('pantilt', {}).get('tilt_invert', 0) == 1 %}checked{% endif %}>Invert tilt</label>
+                </div>
+                <div class="form-group">
+                    <label>Absolute pan limits (&deg;, min / max):</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="pan_min_abs" min="-180" max="180" step="0.1" style="flex:1" value="{{ config.get('pantilt', {}).get('pan_min_abs', -180.0) }}">
+                        <input type="number" id="pan_max_abs" min="-180" max="180" step="0.1" style="flex:1" value="{{ config.get('pantilt', {}).get('pan_max_abs', 180.0) }}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Absolute tilt limits (&deg;, min / max):</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="tilt_min_abs" min="-90" max="90" step="0.1" style="flex:1" value="{{ config.get('pantilt', {}).get('tilt_min_abs', -90.0) }}">
+                        <input type="number" id="tilt_max_abs" min="-90" max="90" step="0.1" style="flex:1" value="{{ config.get('pantilt', {}).get('tilt_max_abs', 90.0) }}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Maximum speed (1-127, pan / tilt):</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="pan_max_speed" min="1" max="127" style="flex:1" value="{{ config.get('pantilt', {}).get('pan_max_speed', 64) }}">
+                        <input type="number" id="tilt_max_speed" min="1" max="127" style="flex:1" value="{{ config.get('pantilt', {}).get('tilt_max_speed', 64) }}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="settle_seconds">Settle time before measurement (s):</label>
+                    <input type="number" id="settle_seconds" min="0" max="60" value="{{ config.get('pantilt', {}).get('settle_seconds', 2) }}">
+                </div>
+                <div class="form-group">
+                    <label for="min_gap_seconds">Minimum gap between scheduled measurements (s):</label>
+                    <input type="number" id="min_gap_seconds" min="10" max="3600" value="{{ config.get('pantilt', {}).get('min_gap_seconds', 60) }}">
+                </div>
+                <div class="form-group">
+                    <label for="move_timeout_seconds">Move timeout (s):</label>
+                    <input type="number" id="move_timeout_seconds" min="10" max="600" value="{{ config.get('pantilt', {}).get('move_timeout_seconds', 120) }}">
+                </div>
+                <div class="form-group">
+                    <label for="measure_timeout_seconds">Measurement timeout (s):</label>
+                    <input type="number" id="measure_timeout_seconds" min="60" max="1800" value="{{ config.get('pantilt', {}).get('measure_timeout_seconds', 400) }}">
+                </div>
+                <div class="form-group">
+                    <label for="pantilt_transport">Connection:</label>
+                    <select id="pantilt_transport" onchange="updateTransportFields()">
+                        <option value="serial" {% if config.get('pantilt', {}).get('transport', 'serial') == 'serial' %}selected{% endif %}>Serial (USB adapter)</option>
+                        <option value="ip" {% if config.get('pantilt', {}).get('transport', 'serial') == 'ip' %}selected{% endif %}>IP (Ethernet, Lantronix module)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="pantilt_serial_fields">
+                    <label for="pantilt_port">Serial port (empty = automatic scan):</label>
+                    <input type="text" id="pantilt_port" value="{{ config.get('pantilt', {}).get('port', '') }}">
+                </div>
+                <div class="form-group" id="pantilt_ip_fields">
+                    <label for="pantilt_host">Positioner IP (Lantronix module):</label>
+                    <input type="text" id="pantilt_host" value="{{ config.get('pantilt', {}).get('host', '') }}">
+                    <label for="pantilt_tcp_port">Positioner TCP port:</label>
+                    <input type="number" id="pantilt_tcp_port" min="1" max="65535" value="{{ config.get('pantilt', {}).get('tcp_port', 10001) }}">
+                </div>
+                <script>
+                    //  Show only the fields for the selected connection type. Both
+                    //  sets are always submitted with save_config; only the one
+                    //  matching pantilt.transport is actually used by the daemon.
+                    function updateTransportFields() {
+                        const isIp = document.getElementById("pantilt_transport").value === "ip";
+                        document.getElementById("pantilt_serial_fields").style.display = isIp ? "none" : "";
+                        document.getElementById("pantilt_ip_fields").style.display = isIp ? "" : "none";
+                    }
+                    document.addEventListener("DOMContentLoaded", updateTransportFields);
+                </script>
+                <div class="form-group">
+                    <label for="heater_config">Heater:</label>
+                    <select id="heater_config">
+                        <option value="1" {% if config.get('pantilt', {}).get('heater_config', 1) == 1 %}selected{% endif %}>Off</option>
+                        <option value="2" {% if config.get('pantilt', {}).get('heater_config', 1) == 2 %}selected{% endif %}>Share power with motors</option>
+                        <option value="3" {% if config.get('pantilt', {}).get('heater_config', 1) == 3 %}selected{% endif %}>Full heat (concurrent with motion)</option>
+                    </select>
+                    <div id="heaterStateLine" class="grey-note"></div>
+                </div>
+                <div class="form-group">
+                    <label for="keepout_profile">Keep-out profile (antenna/mount geometry):</label>
+                    <select id="keepout_profile">
+                        <option value="">-- none (unrestricted) --</option>
+                        {% for p in keepout_profiles %}
+                        <option value="{{ p }}" {% if config.get('pantilt', {}).get('keepout_profile', '') == p %}selected{% endif %}>{{ p }}</option>
+                        {% endfor %}
+                    </select>
+                    <div id="keepoutStateLine" class="grey-note"></div>
+                    <button type="button" onclick="openKeepoutEditor()" style="margin-top:5px;">Open keep-out editor&hellip;</button>
+                </div>
+                <button type="button" onclick="submitPantiltSettings()">Submit</button>
+            </form>
+        </details>
+    </div>
+
+    <div id="pantiltProgramCard" class="container" style="display:none;">
+        <h1>Measurement Program</h1>
+        <div id="programActive" style="display:none;">
+            <div id="programStatusLine" style="text-align:center; font-weight:bold;"></div>
+            <div id="programNextLine" class="grey-note"></div>
+            <div id="nextMeasurementBox" class="timer-box" style="display:none;">
+                Next measurement in: <span id="nextMeasurementCountdown">--:--:--</span>
+                <div class="angles-abs">pan <span id="nextMeasurementPan">-</span>&deg; / tilt <span id="nextMeasurementTilt">-</span>&deg; (relative)</div>
+            </div>
+            <table id="upcomingStepsTable" style="display:none;">
+                <thead><tr><th>#</th><th>pan (&deg;)</th><th>tilt (&deg;)</th></tr></thead>
+                <tbody id="upcomingStepsBody"></tbody>
+            </table>
+            <div style="display:flex; gap:5px; justify-content:center;">
+                <button type="button" onclick="programCommand('pause_program')">Pause</button>
+                <button type="button" onclick="programCommand('resume_program')">Resume</button>
+                <button type="button" style="background-color:#b30000;" onclick="programCommand('stop_program')">Stop</button>
+            </div>
+        </div>
+        <div id="programUpload">
+            <form id="programForm">
+                <div class="form-group">
+                    <label for="programFile">Program file (.yaml):</label>
+                    <input type="file" id="programFile" accept=".yaml,.yml">
+                </div>
+                <div class="form-group">
+                    <label for="programDropdown">Or pick a saved program:</label>
+                    <select id="programDropdown" onchange="loadProgramFromDropdown()">
+                        <option value="">-- select --</option>
+                    </select>
+                </div>
+                <button type="button" onclick="previewProgram()">Preview</button>
+            </form>
+            <div id="programPreview" style="display:none;">
+                <p id="programSummary" style="color:#333; font-size:14px; text-align:left;"></p>
+                <details>
+                    <summary style="cursor:pointer;">Details</summary>
+                    <div id="programDetails"></div>
+                </details>
+                <div id="programConflicts" style="color:#b30000; font-size:13px;"></div>
+                <button id="runProgramBtn" type="button" onclick="runProgram()" disabled>Run</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        // Pan-tilt state
+        let pantiltEnabled = parseInt("{{ config.get('pantilt', {}).get('enabled', 0) }}", 10) === 1;
+        let pantiltLive = {};      // last /get_pantilt_vars response
+        let pantiltMoving = false;
+        let pantiltMeasuring = false;
+        let programText = null;    // uploaded program file contents
+        let lastPreviewResult = null;  // last /pantilt/preview_program response, for the Run confirmation
+        let pantiltCfg = {
+            pan_min_abs: parseFloat("{{ config.get('pantilt', {}).get('pan_min_abs', -180.0) }}"),
+            pan_max_abs: parseFloat("{{ config.get('pantilt', {}).get('pan_max_abs', 180.0) }}"),
+            tilt_min_abs: parseFloat("{{ config.get('pantilt', {}).get('tilt_min_abs', -90.0) }}"),
+            tilt_max_abs: parseFloat("{{ config.get('pantilt', {}).get('tilt_max_abs', 90.0) }}"),
+            home_pan_abs: parseFloat("{{ config.get('pantilt', {}).get('home_pan_abs', 0.0) }}"),
+            home_tilt_abs: parseFloat("{{ config.get('pantilt', {}).get('home_tilt_abs', 0.0) }}"),
+            pan_invert: parseInt("{{ config.get('pantilt', {}).get('pan_invert', 0) }}", 10),
+            tilt_invert: parseInt("{{ config.get('pantilt', {}).get('tilt_invert', 0) }}", 10)
+        };
+
+        window.onload = function () {
+            pollPantiltStatus();
+            updatePantiltToggleButton();
+            updateRelLimitsLine();
+            updateHomeLine();
+            refreshProgramDropdown();
+        };
+
+        //  Home position readout (upper card, below the absolute angle) + the
+        //  Home jog button's hover tooltip -- both fed from pantiltCfg, which
+        //  is refreshed by refreshPantiltConfig() (e.g. after Set Home).
+        function updateHomeLine() {
+            const pan = pantiltCfg.home_pan_abs.toFixed(1);
+            const tilt = pantiltCfg.home_tilt_abs.toFixed(1);
+            document.getElementById("homePanAbs").textContent = pan;
+            document.getElementById("homeTiltAbs").textContent = tilt;
+            document.getElementById("homeJogBtn").title = "Go to home: pan " + pan + "° / tilt " + tilt + "° (absolute)";
+        }
+
+        function pollPantiltStatus() {
+            getPantiltVars();
+            setTimeout(pollPantiltStatus, 1000);
+        }
+
+        //  Header border/background reflects whether pan-tilt is measuring (red,
+        //  same color used while any long-running instrument action is active) or moving
+        function updateHeaderState() {
+            const header = document.querySelector('.header');
+            if (pantiltMeasuring) {
+                header.style.borderBottom = "3px solid #FF5733";
+                header.style.backgroundColor = "#946161";
+            } else if (pantiltMoving) {
+                header.style.borderBottom = "3px solid #3f7fd6";
+                header.style.backgroundColor = "#243f5e";
+            } else {
+                header.style.borderBottom = "3px solid #9e9e9e";
+                header.style.backgroundColor = "#323E4C";
+            }
+        }
+
+        //  Helper: POST fields of the pantilt config section
+        function postPantilt(fields) {
+            fetch('/save_config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pantilt: fields })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.status !== "success") showToast(result.status, result.message);
+            })
+            .catch(error => {
+                alert("Error saving config: " + error);
+            });
+        }
+
+        //  Helper: transient message banner
+        function showToast(status, message) {
+            const outputDiv = document.getElementById("output");
+            outputDiv.innerHTML = `<strong>${escapeHtml(status)}:</strong> ${escapeHtml(message)}`;
+            outputDiv.style.display = "block";
+            setTimeout(() => { outputDiv.style.display = "none"; }, 5000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        //  Module on/off switch
+        function togglePantiltModule() {
+            if (pantiltEnabled && pantiltLive.program_state === "running") {
+                const confirmed = confirm("⚠️ A measurement program is running.\nDisabling the module stops the pan-tilt positioner; the program resumes when the module is enabled again.\n\nContinue?");
+                if (!confirmed) return;
+            }
+            pantiltEnabled = !pantiltEnabled;
+            updatePantiltToggleButton();
+            postPantilt({ enabled: pantiltEnabled ? 1 : 0 });
+        }
+
+        function updatePantiltToggleButton() {
+            const btn = document.getElementById("pantiltToggleBtn");
+            if (pantiltEnabled) {
+                btn.textContent = "Disable Pan-Tilt Module";
+                btn.style.backgroundColor = "red";
+            } else {
+                btn.textContent = "Enable Pan-Tilt Module";
+                btn.style.backgroundColor = "green";
+            }
+        }
+
+        //  1 Hz poll of the pan-tilt daemon (pantilt.py unix socket via
+        //  app_pantilt.py)
+        function getPantiltVars() {
+            fetch('/get_pantilt_vars')
+                .then(response => response.json())
+                .then(data => {
+                    pantiltLive = data;
+                    updatePantiltUI(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching pan-tilt vars:', error);
+                });
+        }
+
+        function updatePantiltUI(data) {
+            const statusLine = document.getElementById("pantiltStatusLine");
+            const angles = document.getElementById("pantiltAngles");
+            const calibrationCard = document.getElementById("pantiltCalibrationCard");
+            const programCard = document.getElementById("pantiltProgramCard");
+            const faultContainer = document.getElementById("pantiltFaultContainer");
+
+            //  An empty response means pantilt.py is not running
+            const serviceUp = data.pantilt_enabled !== undefined;
+            if (serviceUp) {
+                pantiltEnabled = data.pantilt_enabled === 1;
+                updatePantiltToggleButton();
+            }
+
+            if (!pantiltEnabled || !serviceUp) {
+                statusLine.textContent = serviceUp ? "Module disabled" : (pantiltEnabled ? "Pan-tilt service not reachable" : "Module disabled");
+                angles.style.display = "none";
+                calibrationCard.style.display = "none";
+                programCard.style.display = "none";
+                faultContainer.style.display = "none";
+                pantiltMoving = false;
+                pantiltMeasuring = false;
+                updateHeaderState();
+                return;
+            }
+
+            const connected = data.connected === 1;
+            pantiltMoving = connected && data.moving === 1;
+            pantiltMeasuring = connected && data.measuring === 1;
+            updateHeaderState();
+            if (connected) {
+                statusLine.textContent = "Connection OK (" + data.port + ")";
+                statusLine.style.color = "#017701";
+            } else if (data.connecting === 1) {
+                statusLine.textContent = "Connecting…";
+                statusLine.style.color = "#b8860b";
+            } else {
+                statusLine.textContent = "Connection failure — retry in " + data.retry_in_s + " s";
+                statusLine.style.color = "#b30000";
+            }
+
+            //  Live angles: relative large, absolute in light grey below
+            angles.style.display = connected ? "block" : "none";
+            if (connected) {
+                document.getElementById("panRel").textContent = Number(data.pan_rel).toFixed(1);
+                document.getElementById("tiltRel").textContent = Number(data.tilt_rel).toFixed(1);
+                document.getElementById("panAbs").textContent = Number(data.pan_abs).toFixed(1);
+                document.getElementById("tiltAbs").textContent = Number(data.tilt_abs).toFixed(1);
+                document.getElementById("movingIndicator").textContent = data.moving === 1 ? " ⟳" : "";
+            }
+
+            //  Heater: 0 = unknown/unconfirmed, 1/2/3 = confirmed mode from the unit
+            const heaterNames = {1: "Off", 2: "Sharing power with motors", 3: "Full heat"};
+            document.getElementById("heaterStateLine").textContent =
+                connected ? "Confirmed: " + (heaterNames[data.heater_state] || "unknown") : "";
+
+            document.getElementById("keepoutStateLine").textContent = data.keepout_profile
+                ? data.keepout_breakpoints + " breakpoint(s) loaded"
+                : "No profile selected — moves are unrestricted by antenna geometry";
+
+            //  Single-measurement button: red + disabled while the daemon is
+            //  blocked inside measure() (can take up to measure_timeout_seconds)
+            const measureBtn = document.getElementById("singleMeasureBtn");
+            if (data.measuring === 1) {
+                measureBtn.textContent = "Measuring…";
+                measureBtn.style.backgroundColor = "red";
+                measureBtn.disabled = true;
+            } else {
+                measureBtn.textContent = "Take Single Measurement";
+                measureBtn.style.backgroundColor = "#007d00";
+                measureBtn.disabled = false;
+            }
+
+            //  Manual moves/settings and starting a NEW program stay visible but
+            //  disabled while a program is already running, to avoid the positioner
+            //  being jogged out from under it mid-sequence.
+            const programRunning = data.program_state === "running";
+            calibrationCard.style.display = connected ? "block" : "none";
+            calibrationCard.classList.toggle("card-disabled", programRunning);
+            programCard.style.display = connected ? "block" : "none";
+            programCard.classList.toggle("card-disabled", false);
+
+            //  Active program status + controls
+            const programActive = data.program_state !== "";
+            document.getElementById("programActive").style.display = programActive ? "block" : "none";
+            document.getElementById("programUpload").style.display = programActive ? "none" : "block";
+            if (programActive) {
+                let line = data.program_name + " (" + data.program_type + ") — " + data.program_state;
+                if (data.program_progress) line += " — " + data.program_progress;
+                document.getElementById("programStatusLine").textContent = line;
+
+                const stepsTable = document.getElementById("upcomingStepsTable");
+                const stepsBody = document.getElementById("upcomingStepsBody");
+                const nextMeasurementBox = document.getElementById("nextMeasurementBox");
+                let nextLine = "";
+
+                if (data.program_type === "automated" && data.next_measurement_utc) {
+                    nextMeasurementBox.style.display = "inline-block";
+                    document.getElementById("nextMeasurementCountdown").textContent = formatHMS(data.next_measurement_in_s);
+                    document.getElementById("nextMeasurementPan").textContent = Number(data.next_pan_rel).toFixed(1);
+                    document.getElementById("nextMeasurementTilt").textContent = Number(data.next_tilt_rel).toFixed(1);
+                    stepsTable.style.display = "none";
+                    stepsBody.innerHTML = "";
+                } else if (data.program_type === "single" && data.steps_total) {
+                    nextMeasurementBox.style.display = "none";
+                    nextLine = "Finished " + data.steps_done + "/" + data.steps_total + " steps";
+                    if (data.estimated_remaining_s) {
+                        nextLine += " — estimated time remaining: " + formatCountdown(data.estimated_remaining_s);
+                    }
+
+                    if (data.upcoming_points && data.upcoming_points.length) {
+                        stepsBody.innerHTML = data.upcoming_points.map((p, i) =>
+                            "<tr><td>" + (data.steps_done + i + 1) + "</td><td>" + Number(p.pan_rel).toFixed(1) +
+                            "</td><td>" + Number(p.tilt_rel).toFixed(1) + "</td></tr>"
+                        ).join("");
+                        stepsTable.style.display = "table";
+                    } else {
+                        stepsTable.style.display = "none";
+                        stepsBody.innerHTML = "";
+                    }
+                } else if (data.program_type === "single" && data.next_measurement_utc) {
+                    //  Idle between sweeps (single+repeat_minutes, or between sweeps in a
+                    //  multi-sweep program): steps_total is 0 while waiting for the next slot
+                    nextMeasurementBox.style.display = "none";
+                    stepsTable.style.display = "none";
+                    stepsBody.innerHTML = "";
+                    nextLine = "Waiting — next sweep due in " + formatHMS(data.next_measurement_in_s) +
+                               " (" + data.next_measurement_utc + " UTC)";
+                } else {
+                    nextMeasurementBox.style.display = "none";
+                    stepsTable.style.display = "none";
+                    stepsBody.innerHTML = "";
+                }
+                document.getElementById("programNextLine").textContent = nextLine;
+            }
+
+            //  Fault banner
+            if (data.fault) {
+                faultContainer.style.display = "block";
+                document.getElementById("pantiltFaultText").textContent = data.fault;
+            } else {
+                faultContainer.style.display = "none";
+            }
+        }
+
+        //  Relative limits derived from the absolute limits and the home position
+        function relLimits() {
+            //  pan_min_abs/pan_max_abs are the RAW (hardware) travel range, not
+            //  the logical one — convert first (inversion negates AND swaps
+            //  min/max), matching pantilt.py's effective_limits(), then shift by
+            //  the home position.
+            let panMin = pantiltCfg.pan_min_abs, panMax = pantiltCfg.pan_max_abs;
+            if (pantiltCfg.pan_invert === 1) { [panMin, panMax] = [-panMax, -panMin]; }
+
+            let tiltMin = pantiltCfg.tilt_min_abs, tiltMax = pantiltCfg.tilt_max_abs;
+            if (pantiltCfg.tilt_invert === 1) { [tiltMin, tiltMax] = [-tiltMax, -tiltMin]; }
+
+            return {
+                pan_min: panMin - pantiltCfg.home_pan_abs,
+                pan_max: panMax - pantiltCfg.home_pan_abs,
+                tilt_min: tiltMin - pantiltCfg.home_tilt_abs,
+                tilt_max: tiltMax - pantiltCfg.home_tilt_abs
+            };
+        }
+
+        function updateRelLimitsLine() {
+            const lim = relLimits();
+            document.getElementById("panLimitsLine").textContent =
+                "Min: " + lim.pan_min.toFixed(1) + "°   Max: " + lim.pan_max.toFixed(1) + "°";
+            document.getElementById("tiltLimitsLine").textContent =
+                "Min: " + lim.tilt_min.toFixed(1) + "°   Max: " + lim.tilt_max.toFixed(1) + "°";
+        }
+
+        function refreshPantiltConfig() {
+            fetch('/get_config')
+                .then(response => response.json())
+                .then(config => {
+                    const pantilt = config.pantilt || {};
+                    ["pan_min_abs", "pan_max_abs", "tilt_min_abs", "tilt_max_abs",
+                     "home_pan_abs", "home_tilt_abs"].forEach(key => {
+                        if (pantilt[key] !== undefined) pantiltCfg[key] = parseFloat(pantilt[key]);
+                    });
+                    ["pan_invert", "tilt_invert"].forEach(key => {
+                        if (pantilt[key] !== undefined) pantiltCfg[key] = parseInt(pantilt[key], 10);
+                    });
+                    updateRelLimitsLine();
+                    updateHomeLine();
+                })
+                .catch(error => console.error('Error refreshing pan-tilt config:', error));
+        }
+
+        //  Calibration: step moves, go-to, home
+        function stepPantilt(panSign, tiltSign) {
+            const step = parseFloat(document.getElementById("stepSize").value);
+            postPantilt({ step_pan: panSign * step, step_tilt: tiltSign * step, step_request: 1 });
+        }
+
+        function goHomePantilt() {
+            postPantilt({ move_pan_rel: 0.0, move_tilt_rel: 0.0, move_request: 1 });
+        }
+
+        //  One VV+VH sweep at the CURRENT pan/tilt position, without a program.
+        //  Triggers lib/measurement.py's take_measurement() at the current position;
+        //  card-disabled (program running) already blocks this like every other
+        //  manual command.
+        function takeSingleMeasurement() {
+            postPantilt({ measure_request: 1 });
+        }
+
+        function movePantiltTo() {
+            const pan = parseFloat(document.getElementById("gotoPan").value);
+            const tilt = parseFloat(document.getElementById("gotoTilt").value);
+
+            if (isNaN(pan) || isNaN(tilt)) {
+                alert("⚠️ Enter both a pan and a tilt angle.");
+                return;
+            }
+
+            const lim = relLimits();
+            if (pan < lim.pan_min || pan > lim.pan_max || tilt < lim.tilt_min || tilt > lim.tilt_max) {
+                alert("⚠️ Target outside the relative limits:\npan " + lim.pan_min.toFixed(1) + "° … " + lim.pan_max.toFixed(1) +
+                      "°, tilt " + lim.tilt_min.toFixed(1) + "° … " + lim.tilt_max.toFixed(1) + "°");
+                return;
+            }
+
+            postPantilt({ move_pan_rel: pan, move_tilt_rel: tilt, move_request: 1 });
+        }
+
+        //  Home position: locked behind a checkbox + confirmation
+        function setHomePosition() {
+            if (!document.getElementById("unlockHome").checked) {
+                alert("⚠️ Unlock the home position first (checkbox above the button).");
+                return;
+            }
+            const confirmed = confirm("⚠️ Set the CURRENT position as the new home (relative 0/0)?\nThe relative limits and the validity of program files change with it.\n\nDo you want to continue?");
+            if (!confirmed) return;
+
+            postPantilt({ set_home: 1 });
+            document.getElementById("unlockHome").checked = false;
+
+            //  The daemon stores the new home within a poll cycle
+            setTimeout(refreshPantiltConfig, 2000);
+        }
+
+        function clearPantiltFault() {
+            postPantilt({ clear_fault: 1 });
+        }
+
+        //  Opens the keep-out envelope editor (visualize + jog + record/build
+        //  profile files) in its own window, preselected to whichever profile
+        //  is picked in the dropdown right now (falls back to the active one).
+        function openKeepoutEditor() {
+            const sel = document.getElementById("keepout_profile").value;
+            const url = "/pantilt/keepout" + (sel ? "?profile=" + encodeURIComponent(sel) : "");
+            window.open(url, "keepoutEditor", "width=1180,height=820");
+        }
+
+        //  Advanced settings
+        function submitPantiltSettings() {
+            const panMin = parseFloat(document.getElementById("pan_min_abs").value);
+            const panMax = parseFloat(document.getElementById("pan_max_abs").value);
+            const tiltMin = parseFloat(document.getElementById("tilt_min_abs").value);
+            const tiltMax = parseFloat(document.getElementById("tilt_max_abs").value);
+
+            if (!(panMin < panMax) || !(tiltMin < tiltMax)) {
+                alert("⚠️ Each minimum limit must be smaller than its maximum.");
+                return;
+            }
+
+            if (pantiltLive.connected === 1 &&
+                (pantiltLive.pan_abs < panMin || pantiltLive.pan_abs > panMax ||
+                 pantiltLive.tilt_abs < tiltMin || pantiltLive.tilt_abs > tiltMax)) {
+                const confirmed = confirm("⚠️ The current position is OUTSIDE the new absolute limits.\nThe pan-tilt positioner will refuse every move until it is back inside them.\n\nDo you want to continue?");
+                if (!confirmed) return;
+            }
+
+            const panInvert = document.getElementById("pan_invert").checked ? 1 : 0;
+            const tiltInvert = document.getElementById("tilt_invert").checked ? 1 : 0;
+            if (panInvert !== pantiltCfg.pan_invert || tiltInvert !== pantiltCfg.tilt_invert) {
+                const confirmed = confirm("⚠️ Changing pan/tilt inversion redefines what every stored home position, "
+                    + "limit and program angle physically means.\nRe-check the home position and any saved programs afterward.\n\nContinue?");
+                if (!confirmed) return;
+            }
+
+            const data = {
+                pantilt: {
+                    pan_min_abs: panMin,
+                    pan_max_abs: panMax,
+                    tilt_min_abs: tiltMin,
+                    tilt_max_abs: tiltMax,
+                    pan_invert: panInvert,
+                    tilt_invert: tiltInvert,
+                    pan_max_speed: parseInt(document.getElementById("pan_max_speed").value),
+                    tilt_max_speed: parseInt(document.getElementById("tilt_max_speed").value),
+                    settle_seconds: parseInt(document.getElementById("settle_seconds").value),
+                    min_gap_seconds: parseInt(document.getElementById("min_gap_seconds").value),
+                    move_timeout_seconds: parseInt(document.getElementById("move_timeout_seconds").value),
+                    measure_timeout_seconds: parseInt(document.getElementById("measure_timeout_seconds").value),
+                    transport: document.getElementById("pantilt_transport").value,
+                    port: document.getElementById("pantilt_port").value,
+                    host: document.getElementById("pantilt_host").value,
+                    tcp_port: parseInt(document.getElementById("pantilt_tcp_port").value),
+                    heater_config: parseInt(document.getElementById("heater_config").value),
+                    keepout_profile: document.getElementById("keepout_profile").value,
+
+                    update: 1
+                }
+            };
+
+            fetch('/save_config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                showToast(result.status, result.message);
+                refreshPantiltConfig();
+            })
+            .catch(error => {
+                alert("Error saving config: " + error);
+            });
+        }
+
+        function formatCountdown(totalSeconds) {
+            const s = Math.max(0, Math.floor(totalSeconds));
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const rem = s % 60;
+            if (h > 0) return h + ":" + String(m).padStart(2, "0") + ":" + String(rem).padStart(2, "0");
+            return m + ":" + String(rem).padStart(2, "0");
+        }
+
+        //  HH:MM:SS countdown formatting helper
+        function formatHMS(totalSeconds) {
+            const s = Math.max(0, Math.floor(totalSeconds));
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const rem = s % 60;
+            return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(rem).padStart(2, "0");
+        }
+
+        //  Program files: preview (validate) and run
+        function refreshProgramDropdown() {
+            fetch('/pantilt/list_programs')
+                .then(response => response.json())
+                .then(files => {
+                    const select = document.getElementById("programDropdown");
+                    select.innerHTML = '<option value="">-- select --</option>' +
+                        files.map(f => "<option value='" + escapeHtml(f) + "'>" + escapeHtml(f) + "</option>").join("");
+                })
+                .catch(() => {});
+        }
+
+        function loadProgramFromDropdown() {
+            const name = document.getElementById("programDropdown").value;
+            if (!name) return;
+
+            document.getElementById("programFile").value = "";
+
+            fetch('/pantilt/program_content?name=' + encodeURIComponent(name))
+                .then(response => {
+                    if (!response.ok) throw new Error("Could not load " + name);
+                    return response.text();
+                })
+                .then(text => {
+                    programText = text;
+                    fetch('/pantilt/preview_program', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: programText
+                    })
+                    .then(response => response.json())
+                    .then(renderProgramPreview)
+                    .catch(error => alert("Error validating program: " + error));
+                })
+                .catch(error => alert("Error loading program: " + error));
+        }
+
+        function previewProgram() {
+            const fileInput = document.getElementById("programFile");
+            if (!fileInput.files.length) {
+                alert("⚠️ Choose a program file first.");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                programText = e.target.result;
+                fetch('/pantilt/preview_program', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: programText
+                })
+                .then(response => response.json())
+                .then(renderProgramPreview)
+                .catch(error => alert("Error validating program: " + error));
+            };
+            reader.readAsText(fileInput.files[0]);
+        }
+
+        function renderProgramPreview(result) {
+            const preview = document.getElementById("programPreview");
+            const summary = document.getElementById("programSummary");
+            const details = document.getElementById("programDetails");
+            const conflicts = document.getElementById("programConflicts");
+            const runBtn = document.getElementById("runProgramBtn");
+
+            preview.style.display = "block";
+            lastPreviewResult = null;
+
+            //  Structural error: nothing to show but the message
+            if (result.status === "error") {
+                summary.innerHTML = "<span style='color:#b30000;'>Invalid program: " + escapeHtml(result.message) + "</span>";
+                details.innerHTML = "";
+                conflicts.innerHTML = "";
+                runBtn.disabled = true;
+                return;
+            }
+
+            const s = result.summary;
+            let line = "<strong>" + escapeHtml(s.name) + "</strong> — " + s.type;
+            if (s.sweeps) {
+                line += ", " + s.n_sweeps + " sweeps, " + s.n_points + " points total, " + s.tries + " tries per point";
+            } else {
+                line += ", " + s.n_points + " points, " + s.tries + " tries per point";
+                if (s.estimated_minutes !== undefined) line += ", estimated duration ~" + s.estimated_minutes + " min";
+                if (s.measurements_per_hour !== undefined) line += ", " + s.measurements_per_hour + " measurements/hour";
+                if (s.initial_startdate_pantilt) line += ", anchored at " + s.initial_startdate_pantilt + " UTC";
+            }
+            if (!result.valid) line += " — <span style='color:#b30000;'>INVALID</span>";
+
+            //  Recorded setup this program expects (if declared) — same for single/automated
+            if (s.home_pan_abs !== undefined || s.home_tilt_abs !== undefined ||
+                s.pan_orientation !== undefined || s.tilt_orientation !== undefined) {
+                line += "<br><span style='font-size:13px; color:#333;'>Recorded setup: ";
+                const parts = [];
+                if (s.home_pan_abs !== undefined) parts.push("home pan " + s.home_pan_abs + "°");
+                if (s.home_tilt_abs !== undefined) parts.push("home tilt " + s.home_tilt_abs + "°");
+                if (s.pan_orientation !== undefined) parts.push("pan orientation " + s.pan_orientation);
+                if (s.tilt_orientation !== undefined) parts.push("tilt orientation " + s.tilt_orientation);
+                line += parts.join(", ") + "</span>";
+            }
+            if (s.sweeps) {
+                line += "<table style='margin-top:6px;'><tr><th>sweep</th><th>points</th><th>every</th>" +
+                        "<th>est. duration</th><th>anchored at</th></tr>";
+                s.sweeps.forEach(sw => {
+                    line += "<tr><td>" + escapeHtml(sw.name) + "</td><td>" + sw.n_points + "</td><td>" +
+                            sw.repeat_minutes + " min</td><td>~" + sw.estimated_minutes + " min</td><td>" +
+                            sw.initial_startdate_pantilt + " UTC</td></tr>";
+                });
+                line += "</table>";
+            }
+            summary.innerHTML = line;
+
+            //  Per-point table: red rows outside limits, orange close to a limit.
+            //  Sweep programs group rows under a sub-header per sweep instead of
+            //  the automated-only every/offset columns (sweeps don't have those).
+            const automated = s.type === "automated";
+            const hasSweeps = result.points.length && result.points[0].sweep_name !== undefined;
+            let html = "";
+            if (hasSweeps) {
+                let currentSweep = null;
+                result.points.forEach(p => {
+                    if (p.sweep_name !== currentSweep) {
+                        if (currentSweep !== null) html += "</table>";
+                        html += "<p style='margin:8px 0 2px; font-weight:bold;'>" + escapeHtml(p.sweep_name) + "</p>";
+                        html += "<table><tr><th>#</th><th>pan (°)</th><th>tilt (°)</th><th>check</th></tr>";
+                        currentSweep = p.sweep_name;
+                    }
+                    html += "<tr class='point-" + p.status + "'><td>" + (p.index + 1) + "</td><td>" + p.pan_deg +
+                            "</td><td>" + p.tilt_deg + "</td><td>" + escapeHtml(p.message || "ok") + "</td></tr>";
+                });
+                if (currentSweep !== null) html += "</table>";
+            } else {
+                html = "<table><tr><th>#</th><th>pan (°)</th><th>tilt (°)</th>";
+                if (automated) html += "<th>every (min)</th><th>offset (s)</th>";
+                html += "<th>check</th></tr>";
+                result.points.forEach(p => {
+                    html += "<tr class='point-" + p.status + "'><td>" + (p.index + 1) + "</td><td>" + p.pan_deg + "</td><td>" + p.tilt_deg + "</td>";
+                    if (automated) html += "<td>" + p.repeated_minutes + "</td><td>" + p.offset_sec + "</td>";
+                    html += "<td>" + escapeHtml(p.message || "ok") + "</td></tr>";
+                });
+                html += "</table>";
+            }
+
+            if (result.timeline && result.timeline.length) {
+                html += "<p style='color:#333; font-size:13px; text-align:left;'>First measurements (UTC): " +
+                        result.timeline.slice(0, 5).map(t =>
+                            t.sweep_name !== undefined ? t.utc + " (" + escapeHtml(t.sweep_name) + ")"
+                                                        : t.utc + " (point " + (t.point + 1) + ")"
+                        ).join("; ") + " …</p>";
+            }
+            details.innerHTML = html;
+
+            let conflictsHtml = result.conflicts.map(c => "⚠️ " + escapeHtml(c.message)).join("<br>");
+            if (result.home_warnings && result.home_warnings.length) {
+                if (conflictsHtml) conflictsHtml += "<br>";
+                conflictsHtml += result.home_warnings.map(w => "⚠️ " + escapeHtml(w)).join("<br>");
+            }
+            if (s.sweep_conflicts && s.sweep_conflicts.length) {
+                //  Informational only (duration is an estimate) — doesn't gate runBtn
+                if (conflictsHtml) conflictsHtml += "<br>";
+                conflictsHtml += s.sweep_conflicts.map(c => "ℹ️ " + escapeHtml(c.message)).join("<br>");
+            }
+            conflicts.innerHTML = conflictsHtml;
+            runBtn.disabled = !result.valid;
+
+            lastPreviewResult = result;
+        }
+
+        function runProgram() {
+            if (!programText) return;
+
+            //  Only ask for confirmation when something meaningful would
+            //  actually change (recorded home/orientation).
+            if (lastPreviewResult && lastPreviewResult.home_warnings && lastPreviewResult.home_warnings.length) {
+                const confirmed = confirm("⚠️ " + lastPreviewResult.home_warnings.join("\n⚠️ ") + "\n\nContinue?");
+                if (!confirmed) return;
+            }
+
+            fetch('/pantilt/run_program', {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: programText
+            })
+            .then(response => response.json())
+            .then(result => {
+                showToast(result.status, result.message);
+                if (result.status === "success") {
+                    document.getElementById("programPreview").style.display = "none";
+                    document.getElementById("programFile").value = "";
+                    document.getElementById("programDropdown").value = "";
+                    programText = null;
+                    lastPreviewResult = null;
+                    refreshProgramDropdown();
+                }
+            })
+            .catch(error => alert("Error starting program: " + error));
+        }
+
+        //  Pause / resume / stop of the active program
+        function programCommand(flag) {
+            if (flag === 'stop_program') {
+                const confirmed = confirm("Stop the program?\nThe progress is discarded.");
+                if (!confirmed) return;
+            }
+            const fields = {};
+            fields[flag] = 1;
+            postPantilt(fields);
+        }
+
+    </script>
+</body>
+</html>

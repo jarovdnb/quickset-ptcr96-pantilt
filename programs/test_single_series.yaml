@@ -1,0 +1,12 @@
+schema_version: 1
+type: single
+name: test_single_series
+defaults:
+  try: 2
+points:
+  - pan_deg: 0
+    tilt_deg: 0
+  - pan_deg: 20
+    tilt_deg: 10
+  - pan_deg: -20
+    tilt_deg: -10

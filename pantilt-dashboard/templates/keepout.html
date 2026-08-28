@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pan/Tilt Keep-Out Editor</title>
+<style>
+  :root {
+    --bg: #12161c;
+    --bg-panel: #1a2029;
+    --bg-panel-2: #212836;
+    --bg-input: #171c24;
+    --line: #2c3444;
+    --line-soft: #232a37;
+    --ink: #e9e6de;
+    --ink-dim: #8b93a6;
+    --ink-faint: #5b6478;
+    --accent: #e0a64c;
+    --accent-soft: rgba(224, 166, 76, 0.16);
+    --accent-ink: #1a1408;
+    --safe: #4cae7c;
+    --safe-soft: rgba(76, 174, 124, 0.18);
+    --restricted: #c4523f;
+    --restricted-soft: rgba(196, 82, 63, 0.18);
+    --live: #3f8fd6;
+    --live-soft: rgba(63, 143, 214, 0.20);
+    --font-display: "Bahnschrift", "DIN Alternate", "Barlow Semi Condensed", system-ui, sans-serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "Cascadia Code", "SF Mono", Consolas, "Roboto Mono", ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    height: 100%;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  ::selection { background: var(--accent-soft); }
+
+  a { color: var(--accent); }
+
+  button {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    color: var(--ink);
+    background: var(--bg-panel-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  button.primary {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  button.primary:hover:not(:disabled) { filter: brightness(1.08); color: var(--accent-ink); }
+  button.live-btn {
+    background: var(--live);
+    color: #0c1520;
+    border-color: var(--live);
+    font-weight: 600;
+  }
+  button.live-btn:hover:not(:disabled) { filter: brightness(1.1); color: #0c1520; }
+  button.ghost { background: transparent; }
+  button.danger:hover:not(:disabled) { border-color: var(--restricted); color: var(--restricted); }
+  button.wide { width: 100%; }
+
+  input[type="number"], input[type="text"], select {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    padding: 5px 6px;
+    border-radius: 3px;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+
+  textarea {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 8px;
+    border-radius: 4px;
+    resize: vertical;
+    min-height: 64px;
+  }
+
+  header {
+    padding: 14px 24px 12px;
+    border-bottom: 1px solid var(--line-soft);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px 24px;
+  }
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 23px;
+    letter-spacing: 0.01em;
+    margin: 2px 0 0;
+  }
+  .back-link { font-size: 12px; font-family: var(--font-mono); }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(340px, 1.05fr) minmax(340px, 440px);
+    gap: 1px;
+    background: var(--line-soft);
+  }
+  @media (max-width: 880px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  .sphere-panel {
+    background: var(--bg);
+    padding: 16px 22px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .canvas-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    max-height: calc(100vh - 320px);
+    margin: 0 auto;
+    touch-action: none;
+  }
+  #sphereCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: grab;
+    border-radius: 6px;
+  }
+  #sphereCanvas.grabbing { cursor: grabbing; }
+  #sphereCanvas.pin-hover { cursor: pointer; }
+
+  .readout-overlay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: rgba(18, 22, 28, 0.82);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 7px 10px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    backdrop-filter: blur(2px);
+  }
+  .readout-row { display: flex; align-items: center; gap: 8px; }
+  .status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px 2px 6px;
+    border-radius: 3px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .status-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .status-chip.safe { background: var(--safe-soft); color: var(--safe); }
+  .status-chip.restricted { background: var(--restricted-soft); color: var(--restricted); }
+  .status-chip.off { background: rgba(139,147,166,0.14); color: var(--ink-faint); }
+
+  .view-controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; }
+  .view-controls button { padding: 5px 8px; font-size: 11px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11.5px; color: var(--ink-dim); padding-top: 2px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .swatch { width: 11px; height: 11px; border-radius: 2px; flex: none; }
+  .swatch.safe { background: var(--safe); }
+  .swatch.restricted { background: var(--restricted); }
+  .swatch.pin { background: var(--accent); border-radius: 50%; }
+  .swatch.live { background: var(--live); border-radius: 50%; }
+
+  .hint { font-size: 11.5px; color: var(--ink-faint); }
+
+  .jog-block {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-soft);
+    border-radius: 6px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .jog-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .jog-grid {
+    display: grid;
+    grid-template-columns: 46px 46px 46px;
+    grid-template-rows: 36px 36px 36px;
+    gap: 4px;
+    justify-content: center;
+  }
+  .jog-grid button { padding: 0; font-size: 15px; }
+
+  aside {
+    background: var(--bg-panel);
+    padding: 16px 20px 22px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .panel-block { display: flex; flex-direction: column; gap: 9px; }
+  .panel-title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .banner {
+    border-radius: 5px;
+    padding: 9px 11px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .banner.active { background: var(--safe-soft); border: 1px solid rgba(76,174,124,0.4); }
+  .banner.inactive { background: var(--accent-soft); border: 1px solid rgba(224,166,76,0.4); }
+  .banner strong { color: var(--ink); }
+
+  .profile-row { display: flex; gap: 6px; align-items: center; }
+  .profile-row select { flex: 1; }
+
+  table.bp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.bp-table th {
+    text-align: left; font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint);
+    font-weight: 500; padding: 0 6px 6px 0;
+  }
+  table.bp-table td { padding: 3px 5px 3px 0; vertical-align: middle; }
+  table.bp-table td.rm { width: 24px; text-align: center; }
+  table.bp-table td.rm button { padding: 3px 6px; }
+  table.bp-table td.cnt { color: var(--ink-faint); font-family: var(--font-mono); font-size: 11px; width: 30px; }
+
+  .table-actions { display: flex; gap: 6px; flex-wrap: wrap; padding-top: 4px; }
+
+  .import-box { display: flex; flex-direction: column; gap: 8px; }
+  .import-actions { display: flex; gap: 8px; align-items: center; }
+  .status-line { font-size: 11.5px; color: var(--ink-faint); min-height: 14px; }
+  .status-line.ok { color: var(--safe); }
+  .status-line.err { color: var(--restricted); }
+
+  .notes { font-size: 12px; line-height: 1.6; color: var(--ink-dim); }
+  .notes code { font-family: var(--font-mono); font-size: 11px; background: var(--bg-input); padding: 1px 4px; border-radius: 3px; color: var(--ink); }
+
+  footer { padding: 8px 24px 14px; font-size: 11px; color: var(--ink-faint); font-family: var(--font-mono); }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="kicker">Quickset Pan-Tilt &middot; PTCR-96</div>
+      <h1>Pan/Tilt Keep-Out Editor</h1>
+    </div>
+    <a class="back-link" href="/" target="_self">&larr; back to dashboard</a>
+  </header>
+
+  <main>
+    <section class="sphere-panel">
+      <div class="canvas-wrap">
+        <canvas id="sphereCanvas"></canvas>
+        <div class="readout-overlay">
+          <div class="readout-row">
+            <span id="liveConnChip" class="status-chip off">no data</span>
+            <span id="liveReadoutText">live pan --&deg; tilt --&deg;</span>
+          </div>
+          <div class="readout-row">
+            <span id="testStatusChip" class="status-chip safe">clear</span>
+            <span id="testReadoutText">test pan &nbsp;0.0&deg;&nbsp;&nbsp;tilt &nbsp;0.0&deg;</span>
+          </div>
+        </div>
+        <div class="view-controls">
+          <button id="resetViewBtn" title="Recenter the view">Reset view</button>
+        </div>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><span class="swatch safe"></span>Clear</div>
+        <div class="legend-item"><span class="swatch restricted"></span>Restricted</div>
+        <div class="legend-item"><span class="swatch pin"></span>Test position (drag it)</div>
+        <div class="legend-item"><span class="swatch live"></span>Live positioner</div>
+      </div>
+      <div class="hint">Drag empty sky to rotate the view &middot; drag the amber pin to test a pan/tilt position. Raw hardware frame &mdash; matches what <code>lib/keepout.py</code> enforces.</div>
+
+      <div class="jog-block">
+        <div class="panel-title">Jog the live positioner</div>
+        <div class="jog-row">
+          <label style="font-size:12px;color:var(--ink-dim);">Step (&deg;)</label>
+          <select id="stepSize" style="width:70px;">
+            <option value="0.1">0.1</option>
+            <option value="1" selected>1</option>
+            <option value="5">5</option>
+            <option value="10">10</option>
+          </select>
+          <div class="jog-grid">
+            <div></div><button type="button" onclick="jogStep(0,1)" title="Tilt +">&#9650;</button><div></div>
+            <button type="button" onclick="jogStep(-1,0)" title="Pan -">&#9664;</button>
+            <button type="button" id="homeJogBtn" onclick="jogHome()" title="Home">&#8962;</button>
+            <button type="button" onclick="jogStep(1,0)" title="Pan +">&#9654;</button>
+            <div></div><button type="button" onclick="jogStep(0,-1)" title="Tilt -">&#9660;</button><div></div>
+          </div>
+          <button type="button" id="clearFaultBtn" class="ghost" onclick="clearFault()" style="display:none;">Clear fault</button>
+        </div>
+        <div id="homeLine" class="hint">home: pan --&deg; / tilt --&deg; (absolute)</div>
+        <div id="jogWarning" class="hint" style="display:none;"></div>
+        <div class="jog-row" style="justify-content:space-between;">
+          <button type="button" id="recordBtn" class="live-btn" onclick="recordHere()">&#9673; Record boundary here</button>
+          <button type="button" id="undoBtn" class="ghost danger" onclick="undoRecord()">Undo last</button>
+        </div>
+        <div id="recordStatus" class="status-line"></div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="panel-block">
+        <div class="panel-title">Profile</div>
+        <div class="profile-row">
+          <select id="profileSelect" onchange="onProfileSelectChange()"></select>
+          <button type="button" class="danger ghost" onclick="deleteProfile()" title="Delete this profile file">Delete</button>
+        </div>
+        <div class="profile-row">
+          <input type="text" id="newProfileName" placeholder="new-instrument-name">
+          <button type="button" class="primary" onclick="startNewProfile()">Start new file</button>
+        </div>
+        <div id="activeBanner" class="banner inactive">Loading&hellip;</div>
+      </div>
+
+      <div class="panel-block">
+        <div class="panel-title">
+          <span>Breakpoints (viewing <span id="viewingName">&mdash;</span>)</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="bp-table" id="bpTable">
+            <thead>
+              <tr><th>pan&nbsp;(&deg;)</th><th>tilt&nbsp;min&nbsp;(&deg;)</th><th>tilt&nbsp;max&nbsp;(&deg;)</th><th>n</th><th></th></tr>
+            </thead>
+            <tbody id="bpTableBody"></tbody>
+          </table>
+        </div>
+        <div class="table-actions">
+          <button id="addRowBtn" type="button">+ Add breakpoint</button>
+          <button id="saveTableBtn" type="button" class="primary" onclick="saveTableToProfile()">Save table to profile</button>
+          <button id="resetTableBtn" type="button" class="ghost" onclick="loadProfile(currentProfile, true)">Discard edits</button>
+        </div>
+        <div id="tableStatus" class="status-line"></div>
+      </div>
+
+      <div class="panel-block">
+        <div class="panel-title">Import raw samples</div>
+        <div class="import-box">
+          <textarea id="importText" placeholder='Paste a JSON list of {"tilt_deg": ..., "pan_deg": ...} samples, e.g. from pt_keepout_record.py'></textarea>
+          <div class="import-actions">
+            <button id="importBtn" type="button" class="primary" onclick="importSamples()">Import into table</button>
+            <span class="status-line" id="importStatus"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-block notes">
+        <div class="panel-title">How this works</div>
+        <p>Jogging here uses the same one-shot commands as the main dashboard&rsquo;s calibration card, so moves are still refused by whichever profile is currently <strong>active</strong> (Advanced Settings) &mdash; not necessarily the one you're viewing/editing. To map a wider envelope from scratch, set the active profile to &ldquo;none&rdquo; first and watch the antenna clearance by eye, exactly like <code>pt_keepout_record.py</code>.</p>
+        <p>&ldquo;Record boundary here&rdquo; saves straight to <code>config/keepout/&lt;profile&gt;.json</code> on every click, so nothing is lost if the browser closes mid-session. Table edits (and imports) stay local until you click &ldquo;Save table to profile&rdquo;.</p>
+      </div>
+    </aside>
+  </main>
+
+  <footer>orthographic projection &middot; pan = azimuth, tilt = elevation &middot; raw hardware frame, tilt +90&deg; = bar side</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("sphereCanvas");
+  var ctx = canvas.getContext("2d");
+  var wrap = canvas.parentElement;
+  var BUCKET_SIZE = 5;
+
+  var currentProfile = "";
+  var rawSamples = [];       // last known server-persisted samples for currentProfile
+  var tableRows = [];        // editable breakpoints [{pan, tiltMin, tiltMax, count}]
+  var tableDirty = false;
+  var pantiltCfg = { pan_invert: 0, tilt_invert: 0, home_pan_abs: 0, home_tilt_abs: 0 };
+  var liveConnected = false;
+
+  window.currentProfile = "";   // exposed for the inline "Discard edits" onclick
+
+  var view = { yaw: -0.5, pitch: 0.32 };
+  var testMarker = { pan: 0, tilt: 0 };
+  var liveMarker = { pan: 0, tilt: 0, valid: false };
+  var dragMode = null;
+  var lastPointer = null;
+  var dpr = Math.max(1, window.devicePixelRatio || 1);
+  var radiusPx = 0;
+
+  // ---------- geometry ----------
+
+  function toRad(d) { return d * Math.PI / 180; }
+  function toDeg(r) { return r * 180 / Math.PI; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function normalizePan(p) { return ((p + 180) % 360 + 360) % 360 - 180; }
+
+  function panTiltToVec(panDeg, tiltDeg) {
+    var phi = toRad(panDeg), theta = toRad(tiltDeg);
+    var r = Math.cos(theta);
+    return { x: r * Math.sin(phi), y: Math.sin(theta), z: r * Math.cos(phi) };
+  }
+
+  function vecToPanTilt(v) {
+    var tilt = toDeg(Math.asin(clamp(v.y, -1, 1)));
+    var pan = toDeg(Math.atan2(v.x, v.z));
+    return { pan: pan, tilt: tilt };
+  }
+
+  function rotate(v, yaw, pitch) {
+    var cy = Math.cos(yaw), sy = Math.sin(yaw);
+    var x = v.x * cy + v.z * sy;
+    var z = -v.x * sy + v.z * cy;
+    var y = v.y;
+    var cp = Math.cos(pitch), sp = Math.sin(pitch);
+    var y2 = y * cp - z * sp;
+    var z2 = y * sp + z * cp;
+    return { x: x, y: y2, z: z2 };
+  }
+
+  function unrotate(v, yaw, pitch) {
+    var cp = Math.cos(pitch), sp = Math.sin(pitch);
+    var y1 = v.y * cp + v.z * sp;
+    var z1 = -v.y * sp + v.z * cp;
+    var x1 = v.x;
+    var cy = Math.cos(yaw), sy = Math.sin(yaw);
+    var x2 = x1 * cy - z1 * sy;
+    var z2 = x1 * sy + z1 * cy;
+    return { x: x2, y: y1, z: z2 };
+  }
+
+  // ---------- safety model (mirrors lib/keepout.py) ----------
+
+  function bucketSamples(samples) {
+    var buckets = {}, order = [];
+    samples.forEach(function (s) {
+      var t = Number(s.tilt_deg), p = Number(s.pan_deg);
+      if (!Number.isFinite(t) || !Number.isFinite(p)) return;
+      var key = Math.round(p / BUCKET_SIZE) * BUCKET_SIZE;
+      if (!buckets[key]) { buckets[key] = []; order.push(key); }
+      buckets[key].push(t);
+    });
+    var rows = order.map(function (key) {
+      var tilts = buckets[key];
+      return { pan: key, tiltMin: Math.min.apply(null, tilts), tiltMax: Math.max.apply(null, tilts), count: tilts.length };
+    });
+    rows.sort(function (a, b) { return a.pan - b.pan; });
+    return rows;
+  }
+
+  function enforcedBreakpoints() {
+    // Same >=2-bucket floor as keepout.load_breakpoints(): fewer than that
+    // and the daemon treats the profile as unrestricted.
+    return tableRows.length >= 2 ? tableRows : [];
+  }
+
+  function sortedEnforced() {
+    return enforcedBreakpoints().slice().sort(function (a, b) { return a.pan - b.pan; });
+  }
+
+  function safeRangeAtPan(pan) {
+    var bps = sortedEnforced();
+    if (bps.length === 0) return [-90, 90];
+    var p = normalizePan(pan);
+    if (p <= bps[0].pan) return [bps[0].tiltMin, bps[0].tiltMax];
+    var last = bps[bps.length - 1];
+    if (p >= last.pan) return [last.tiltMin, last.tiltMax];
+    for (var i = 0; i < bps.length - 1; i++) {
+      var a = bps[i], b = bps[i + 1];
+      if (p >= a.pan && p <= b.pan) {
+        var f = (b.pan === a.pan) ? 0 : (p - a.pan) / (b.pan - a.pan);
+        return [a.tiltMin + f * (b.tiltMin - a.tiltMin), a.tiltMax + f * (b.tiltMax - a.tiltMax)];
+      }
+    }
+    return [-90, 90];
+  }
+
+  function isSafe(pan, tilt) {
+    var range = safeRangeAtPan(pan);
+    return tilt >= range[0] && tilt <= range[1];
+  }
+
+  // ---------- rendering ----------
+
+  var PAN_STEPS = 60, TILT_STEPS = 30;
+  var COL_SAFE = "#4cae7c", COL_RESTRICTED = "#c4523f", COL_BG = "#12161c";
+
+  function resizeCanvas() {
+    var size = Math.min(wrap.clientWidth, wrap.clientHeight);
+    dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.round(size * dpr);
+    canvas.height = Math.round(size * dpr);
+    canvas.style.width = size + "px";
+    canvas.style.height = size + "px";
+    radiusPx = size * 0.42;
+    render();
+  }
+
+  function project(v3) {
+    var r = rotate(v3, view.yaw, view.pitch);
+    return { sx: r.x * radiusPx, sy: -r.y * radiusPx, z: r.z };
+  }
+
+  function mixColor(hexA, hexB, t) {
+    var a = hexToRgb(hexA), b = hexToRgb(hexB);
+    var r = Math.round(a[0] + (b[0] - a[0]) * t);
+    var g = Math.round(a[1] + (b[1] - a[1]) * t);
+    var bl = Math.round(a[2] + (b[2] - a[2]) * t);
+    return "rgb(" + r + "," + g + "," + bl + ")";
+  }
+  function hexToRgb(hex) {
+    var n = parseInt(hex.replace("#", ""), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  function cellColor(panDeg, tiltDeg, shade) {
+    var safe = isSafe(panDeg, tiltDeg);
+    var base = safe ? COL_SAFE : COL_RESTRICTED;
+    return mixColor(COL_BG, base, 0.32 + 0.68 * shade);
+  }
+
+  function render() {
+    var w = canvas.width, h = canvas.height;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w / dpr, h / dpr);
+
+    var cx = w / dpr / 2, cy = h / dpr / 2;
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    ctx.strokeStyle = "#232a37";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, radiusPx + 14, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#5b6478";
+    ctx.font = "10px " + getComputedStyle(document.documentElement).getPropertyValue("--font-mono");
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (var t = 0; t < 360; t += 30) {
+      var rr = toRad(t);
+      var tx = Math.sin(rr) * (radiusPx + 14), ty = -Math.cos(rr) * (radiusPx + 14);
+      ctx.beginPath();
+      ctx.moveTo(Math.sin(rr) * (radiusPx + 9), -Math.cos(rr) * (radiusPx + 9));
+      ctx.lineTo(tx, ty);
+      ctx.stroke();
+    }
+
+    var panStep = 360 / PAN_STEPS, tiltStep = 180 / TILT_STEPS;
+    for (var pi = 0; pi < PAN_STEPS; pi++) {
+      var p0 = -180 + pi * panStep, p1 = p0 + panStep;
+      for (var ti = 0; ti < TILT_STEPS; ti++) {
+        var t0 = -90 + ti * tiltStep, t1 = t0 + tiltStep;
+        var pm = (p0 + p1) / 2, tm = (t0 + t1) / 2;
+        var c0 = project(panTiltToVec(p0, t0));
+        var c1 = project(panTiltToVec(p1, t0));
+        var c2 = project(panTiltToVec(p1, t1));
+        var c3 = project(panTiltToVec(p0, t1));
+        var cz = (c0.z + c1.z + c2.z + c3.z) / 4;
+        if (cz <= 0.02) continue;
+        var shade = 0.55 + 0.45 * cz;
+        ctx.fillStyle = cellColor(pm, tm, shade);
+        ctx.beginPath();
+        ctx.moveTo(c0.sx, c0.sy);
+        ctx.lineTo(c1.sx, c1.sy);
+        ctx.lineTo(c2.sx, c2.sy);
+        ctx.lineTo(c3.sx, c3.sy);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    ctx.strokeStyle = "rgba(233,230,222,0.16)";
+    ctx.lineWidth = 1;
+    [0, 45, 90, 135, 180, -45, -90, -135].forEach(function (pan) {
+      drawArc(function (u) { return panTiltToVec(pan, -90 + u * 180); }, 60);
+    });
+    [-60, -30, 0, 30, 60].forEach(function (tilt) {
+      drawArc(function (u) { return panTiltToVec(-180 + u * 360, tilt); }, 90);
+    });
+
+    drawBar();
+    drawPoleLabel(panTiltToVec(0, -90), "GROUND", "#8b93a6");
+    drawPoleLabel(panTiltToVec(0, 90), "BAR", "#e0a64c");
+
+    if (liveMarker.valid) drawMarker(liveMarker.pan, liveMarker.tilt, "#3f8fd6", "rgba(63,143,214,0.22)");
+    drawMarker(testMarker.pan, testMarker.tilt, "#e0a64c", "rgba(224,166,76,0.22)");
+
+    ctx.restore();
+    updateReadout();
+  }
+
+  function drawArc(fn, steps) {
+    ctx.beginPath();
+    var started = false;
+    for (var i = 0; i <= steps; i++) {
+      var v = fn(i / steps);
+      var p = project(v);
+      if (p.z <= 0) { started = false; continue; }
+      if (!started) { ctx.moveTo(p.sx, p.sy); started = true; }
+      else ctx.lineTo(p.sx, p.sy);
+    }
+    ctx.stroke();
+  }
+
+  function drawBar() {
+    var barHalfLen = 0.55;
+    var a = { x: -barHalfLen, y: 1.18, z: 0 };
+    var b = { x: barHalfLen, y: 1.18, z: 0 };
+    var pa = project(a), pb = project(b);
+    if (pa.z <= -0.3 && pb.z <= -0.3) return;
+    ctx.strokeStyle = "#e0a64c";
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    ctx.moveTo(pa.sx, pa.sy);
+    ctx.lineTo(pb.sx, pb.sy);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#e0a64c";
+    [pa, pb].forEach(function (p) {
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  function drawPoleLabel(v3, text, color) {
+    var p = project(v3);
+    if (p.z <= 0.05) return;
+    ctx.fillStyle = color;
+    ctx.font = "600 10px " + getComputedStyle(document.documentElement).getPropertyValue("--font-mono");
+    ctx.textAlign = "center";
+    ctx.fillText(text, p.sx, p.sy - 14);
+  }
+
+  function drawMarker(pan, tilt, color, haloColor) {
+    var v3 = panTiltToVec(pan, tilt);
+    var p = project(v3);
+    var behind = p.z <= 0;
+    ctx.globalAlpha = behind ? 0.35 : 1;
+    ctx.beginPath();
+    ctx.arc(p.sx, p.sy, 9, 0, Math.PI * 2);
+    ctx.fillStyle = haloColor;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(p.sx, p.sy, 5, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "#12161c";
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function updateReadout() {
+    var chip = document.getElementById("testStatusChip");
+    document.getElementById("testReadoutText").innerHTML =
+      "test pan&nbsp;" + fmt(testMarker.pan) + "&deg;&nbsp;&nbsp;tilt&nbsp;" + fmt(testMarker.tilt) + "&deg;";
+    var safe = isSafe(testMarker.pan, testMarker.tilt);
+    chip.textContent = safe ? "clear" : "restricted";
+    chip.className = "status-chip " + (safe ? "safe" : "restricted");
+
+    var liveChip = document.getElementById("liveConnChip");
+    var liveText = document.getElementById("liveReadoutText");
+    if (!liveMarker.valid) {
+      liveChip.textContent = "no data";
+      liveChip.className = "status-chip off";
+      liveText.textContent = "live pan --° tilt --°";
+    } else {
+      liveText.innerHTML = "live pan&nbsp;" + fmt(liveMarker.pan) + "&deg;&nbsp;&nbsp;tilt&nbsp;" + fmt(liveMarker.tilt) + "&deg;";
+      var liveSafe = isSafe(liveMarker.pan, liveMarker.tilt);
+      liveChip.textContent = liveConnected ? (liveSafe ? "clear" : "restricted") : "disconnected";
+      liveChip.className = "status-chip " + (!liveConnected ? "off" : (liveSafe ? "safe" : "restricted"));
+    }
+  }
+
+  function fmt(n) {
+    var s = n.toFixed(1);
+    if (n >= 0) s = "+" + s;
+    return s;
+  }
+
+  // ---------- interaction (test marker + view drag) ----------
+
+  function pointerPos(evt) {
+    var rect = canvas.getBoundingClientRect();
+    var cx = (evt.touches ? evt.touches[0].clientX : evt.clientX) - rect.left - rect.width / 2;
+    var cy = (evt.touches ? evt.touches[0].clientY : evt.clientY) - rect.top - rect.height / 2;
+    return { x: cx, y: cy };
+  }
+
+  function markerScreenPos() {
+    var v3 = panTiltToVec(testMarker.pan, testMarker.tilt);
+    var p = project(v3);
+    return { x: p.sx, y: p.sy };
+  }
+
+  function onPointerDown(evt) {
+    var pos = pointerPos(evt);
+    var mp = markerScreenPos();
+    var dist = Math.hypot(pos.x - mp.x, pos.y - mp.y);
+    dragMode = dist < 16 ? "marker" : "view";
+    lastPointer = pos;
+    canvas.classList.add("grabbing");
+    evt.preventDefault();
+  }
+
+  function onPointerMove(evt) {
+    var pos = pointerPos(evt);
+    if (!dragMode) {
+      var mp = markerScreenPos();
+      var dist = Math.hypot(pos.x - mp.x, pos.y - mp.y);
+      canvas.classList.toggle("pin-hover", dist < 16);
+      return;
+    }
+    if (dragMode === "view") {
+      var dx = pos.x - lastPointer.x, dy = pos.y - lastPointer.y;
+      view.yaw += dx * 0.006;
+      view.pitch = clamp(view.pitch - dy * 0.006, -1.5, 1.5);
+      lastPointer = pos;
+      render();
+    } else if (dragMode === "marker") {
+      var nx = pos.x / radiusPx, ny = -pos.y / radiusPx;
+      var d2 = nx * nx + ny * ny;
+      var nz;
+      if (d2 > 1) { var len = Math.sqrt(d2); nx /= len; ny /= len; nz = 0; }
+      else { nz = Math.sqrt(1 - d2); }
+      var world = unrotate({ x: nx, y: ny, z: nz }, view.yaw, view.pitch);
+      var pt = vecToPanTilt(world);
+      testMarker.pan = normalizePan(pt.pan);
+      testMarker.tilt = clamp(pt.tilt, -90, 90);
+      render();
+    }
+    evt.preventDefault();
+  }
+
+  function onPointerUp() {
+    dragMode = null;
+    lastPointer = null;
+    canvas.classList.remove("grabbing");
+  }
+
+  canvas.addEventListener("mousedown", onPointerDown);
+  window.addEventListener("mousemove", onPointerMove);
+  window.addEventListener("mouseup", onPointerUp);
+  canvas.addEventListener("touchstart", onPointerDown, { passive: false });
+  window.addEventListener("touchmove", onPointerMove, { passive: false });
+  window.addEventListener("touchend", onPointerUp);
+
+  document.getElementById("resetViewBtn").addEventListener("click", function () {
+    view.yaw = -0.5; view.pitch = 0.32;
+    render();
+  });
+  window.addEventListener("resize", resizeCanvas);
+
+  // ---------- breakpoint table ----------
+
+  function renderTable() {
+    var body = document.getElementById("bpTableBody");
+    body.innerHTML = "";
+    tableRows.slice().sort(function (a, b) { return a.pan - b.pan; }).forEach(function (row) {
+      var tr = document.createElement("tr");
+      tr.appendChild(numCell(row.pan, function (v) { row.pan = v; markDirty(); }));
+      tr.appendChild(numCell(row.tiltMin, function (v) { row.tiltMin = v; markDirty(); }));
+      tr.appendChild(numCell(row.tiltMax, function (v) { row.tiltMax = v; markDirty(); }));
+
+      var cntTd = document.createElement("td");
+      cntTd.className = "cnt";
+      cntTd.textContent = row.count ? row.count : "—";
+      tr.appendChild(cntTd);
+
+      var rmTd = document.createElement("td");
+      rmTd.className = "rm";
+      var rmBtn = document.createElement("button");
+      rmBtn.className = "danger ghost";
+      rmBtn.textContent = "✕";
+      rmBtn.title = "Remove this breakpoint";
+      rmBtn.addEventListener("click", function () {
+        tableRows.splice(tableRows.indexOf(row), 1);
+        markDirty();
+        renderTable();
+        render();
+      });
+      rmTd.appendChild(rmBtn);
+      tr.appendChild(rmTd);
+      body.appendChild(tr);
+    });
+    document.getElementById("viewingName").textContent = currentProfile || "(none)";
+  }
+
+  function numCell(value, onChange) {
+    var td = document.createElement("td");
+    var input = document.createElement("input");
+    input.type = "number";
+    input.step = "0.5";
+    input.value = value;
+    input.addEventListener("input", function () {
+      var v = parseFloat(input.value);
+      if (Number.isFinite(v)) { onChange(v); render(); }
+    });
+    td.appendChild(input);
+    return td;
+  }
+
+  function markDirty() {
+    tableDirty = true;
+    setStatus("tableStatus", "Unsaved table edits — click “Save table to profile” to persist.", "");
+  }
+
+  document.getElementById("addRowBtn").addEventListener("click", function () {
+    var rows = tableRows.slice().sort(function (a, b) { return a.pan - b.pan; });
+    var last = rows[rows.length - 1] || { pan: -180, tiltMin: -90, tiltMax: 90 };
+    tableRows.push({ pan: Math.min(180, last.pan + 10), tiltMin: last.tiltMin, tiltMax: last.tiltMax, count: 0 });
+    markDirty();
+    renderTable();
+    render();
+  });
+
+  // ---------- server I/O ----------
+
+  function setStatus(elId, text, cls) {
+    var el = document.getElementById(elId);
+    el.textContent = text;
+    el.className = "status-line" + (cls ? " " + cls : "");
+  }
+
+  function refreshProfileList(selectAfter) {
+    return fetch("/pantilt/keepout/profiles").then(function (r) { return r.json(); }).then(function (names) {
+      var sel = document.getElementById("profileSelect");
+      sel.innerHTML = "";
+      if (names.length === 0) {
+        var opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "-- no profiles yet --";
+        sel.appendChild(opt);
+      }
+      names.forEach(function (n) {
+        var opt = document.createElement("option");
+        opt.value = n;
+        opt.textContent = n;
+        sel.appendChild(opt);
+      });
+      var target = selectAfter || currentProfile;
+      if (target && names.indexOf(target) !== -1) sel.value = target;
+      return names;
+    });
+  }
+
+  function loadProfile(name, forceDiscard) {
+    if (!name) {
+      currentProfile = "";
+      window.currentProfile = "";
+      rawSamples = [];
+      tableRows = [];
+      tableDirty = false;
+      renderTable();
+      render();
+      return Promise.resolve();
+    }
+    if (tableDirty && !forceDiscard) {
+      if (!confirm("Discard unsaved table edits for “" + currentProfile + "”?")) {
+        document.getElementById("profileSelect").value = currentProfile;
+        return Promise.resolve();
+      }
+    }
+    return fetch("/pantilt/keepout/profile/" + encodeURIComponent(name))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        currentProfile = data.name;
+        window.currentProfile = data.name;
+        rawSamples = data.samples || [];
+        tableRows = bucketSamples(rawSamples);
+        tableDirty = false;
+        setStatus("tableStatus", "", "");
+        document.getElementById("profileSelect").value = currentProfile;
+        renderTable();
+        render();
+        updateActiveBanner();
+      });
+  }
+  window.loadProfile = loadProfile;
+
+  window.onProfileSelectChange = function () {
+    var sel = document.getElementById("profileSelect");
+    loadProfile(sel.value);
+  };
+
+  window.startNewProfile = function () {
+    var raw = document.getElementById("newProfileName").value.trim();
+    var name = raw.replace(/[^A-Za-z0-9_-]/g, "");
+    if (!name) { alert("Enter a name (letters, digits, - and _ only)."); return; }
+    if (tableDirty && !confirm("Discard unsaved table edits for “" + currentProfile + "”?")) return;
+    currentProfile = name;
+    window.currentProfile = name;
+    rawSamples = [];
+    tableRows = [];
+    tableDirty = false;
+    document.getElementById("newProfileName").value = "";
+    renderTable();
+    render();
+    refreshProfileList(name);
+    updateActiveBanner();
+    setStatus("tableStatus", "New, unsaved profile — jog + Record, or add breakpoints and Save.", "");
+  };
+
+  window.deleteProfile = function () {
+    if (!currentProfile) return;
+    if (!confirm("Delete profile “" + currentProfile + "” (config/keepout/" + currentProfile + ".json)? This cannot be undone.")) return;
+    fetch("/pantilt/keepout/profile/" + encodeURIComponent(currentProfile), { method: "DELETE" })
+      .then(function (r) { return r.json(); })
+      .then(function () {
+        refreshProfileList("").then(function (names) {
+          loadProfile(names.length ? names[0] : "");
+        });
+      });
+  };
+
+  window.saveTableToProfile = function () {
+    if (!currentProfile) { alert("Pick or start a profile first."); return; }
+    var samples = [];
+    tableRows.forEach(function (row) {
+      var p = Math.round(row.pan / BUCKET_SIZE) * BUCKET_SIZE;
+      samples.push({ tilt_deg: row.tiltMin, pan_deg: p });
+      if (row.tiltMax !== row.tiltMin) samples.push({ tilt_deg: row.tiltMax, pan_deg: p });
+    });
+    fetch("/pantilt/keepout/profile/" + encodeURIComponent(currentProfile) + "/samples", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ samples: samples })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.status !== "success") { setStatus("tableStatus", res.message, "err"); return; }
+        rawSamples = res.samples;
+        tableRows = bucketSamples(rawSamples);
+        tableDirty = false;
+        renderTable();
+        render();
+        setStatus("tableStatus", res.message, "ok");
+        refreshProfileList(currentProfile);
+      });
+  };
+
+  window.importSamples = function () {
+    var raw = document.getElementById("importText").value.trim();
+    if (!raw) { setStatus("importStatus", "Paste samples first.", "err"); return; }
+    var data;
+    try { data = JSON.parse(raw); }
+    catch (e) {
+      try { data = JSON.parse(raw.replace(/'/g, '"')); }
+      catch (e2) { setStatus("importStatus", "Could not parse — expected a JSON list of {tilt_deg, pan_deg} objects.", "err"); return; }
+    }
+    if (!Array.isArray(data) || data.length === 0) { setStatus("importStatus", "No samples found.", "err"); return; }
+    rawSamples = data;
+    tableRows = bucketSamples(rawSamples);
+    tableDirty = true;
+    renderTable();
+    render();
+    setStatus("importStatus", "Imported " + data.length + " sample(s) into " + tableRows.length + " breakpoint row(s) — not saved yet.", "ok");
+    setStatus("tableStatus", "Unsaved table edits — click “Save table to profile” to persist.", "");
+  };
+
+  window.recordHere = function () {
+    if (!currentProfile) { alert("Pick or start a profile first."); return; }
+    if (tableDirty) { alert("You have unsaved table edits. Save or discard them before recording (recording writes straight to the file)."); return; }
+    if (!liveConnected) { setStatus("recordStatus", "Positioner not connected.", "err"); return; }
+    fetch("/pantilt/keepout/profile/" + encodeURIComponent(currentProfile) + "/record", { method: "POST" })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        setStatus("recordStatus", res.message, res.status === "success" ? "ok" : "err");
+        if (res.status === "success") {
+          rawSamples = res.samples;
+          tableRows = bucketSamples(rawSamples);
+          renderTable();
+          render();
+          refreshProfileList(currentProfile);
+        }
+      });
+  };
+
+  window.undoRecord = function () {
+    if (!currentProfile) return;
+    if (tableDirty && !confirm("Discard unsaved table edits and undo the last recorded sample?")) return;
+    fetch("/pantilt/keepout/profile/" + encodeURIComponent(currentProfile) + "/undo", { method: "POST" })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        setStatus("recordStatus", res.message, res.status === "success" ? "ok" : "err");
+        if (res.status === "success") {
+          rawSamples = res.samples;
+          tableRows = bucketSamples(rawSamples);
+          tableDirty = false;
+          renderTable();
+          render();
+          refreshProfileList(currentProfile);
+        }
+      });
+  };
+
+  // ---------- jog controls (same one-shot flags as the main dashboard) ----------
+
+  function postPantilt(fields) {
+    return fetch("/save_config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pantilt: fields })
+    }).then(function (r) { return r.json(); });
+  }
+
+  window.jogStep = function (panSign, tiltSign) {
+    var step = parseFloat(document.getElementById("stepSize").value);
+    postPantilt({ step_pan: panSign * step, step_tilt: tiltSign * step, step_request: 1 })
+      .then(function (res) { if (res.status !== "success") setStatus("recordStatus", res.message, "err"); });
+  };
+
+  window.jogHome = function () {
+    postPantilt({ move_pan_rel: 0.0, move_tilt_rel: 0.0, move_request: 1 })
+      .then(function (res) { if (res.status !== "success") setStatus("recordStatus", res.message, "err"); });
+  };
+
+  window.clearFault = function () {
+    postPantilt({ clear_fault: 1 });
+  };
+
+  window.makeActiveProfile = function () {
+    if (!currentProfile) return;
+    postPantilt({ keepout_profile: currentProfile, update: 1 }).then(function () {
+      setTimeout(pollLive, 300);
+    });
+  };
+
+  // ---------- live status polling ----------
+
+  function updateActiveBanner() {
+    var banner = document.getElementById("activeBanner");
+    var active = pollLive.activeProfile || "";
+    if (currentProfile && currentProfile === active) {
+      banner.className = "banner active";
+      banner.innerHTML = "<strong>Active.</strong> This profile is currently enforced on every move (" +
+        (pollLive.activeBreakpoints || 0) + " breakpoint(s) loaded by the daemon).";
+    } else {
+      var activeLabel = active ? "“" + active + "”" : "none (unrestricted)";
+      banner.className = "banner inactive";
+      banner.innerHTML = "Not active — currently enforced: <strong>" + activeLabel + "</strong>. " +
+        (currentProfile ? '<button type="button" onclick="makeActiveProfile()" style="margin-top:6px;">Make “' + currentProfile + '” active</button>' : "");
+    }
+  }
+
+  function pollLive() {
+    fetch("/get_pantilt_vars").then(function (r) { return r.json(); }).then(function (data) {
+      liveConnected = data.connected === 1;
+      pollLive.activeProfile = data.keepout_profile || "";
+      pollLive.activeBreakpoints = data.keepout_breakpoints || 0;
+
+      var recordBtn = document.getElementById("recordBtn");
+      var undoBtn = document.getElementById("undoBtn");
+      recordBtn.disabled = !liveConnected || !currentProfile;
+      undoBtn.disabled = !currentProfile;
+
+      var warn = document.getElementById("jogWarning");
+      if (data.fault) {
+        warn.style.display = "";
+        warn.textContent = "⚠ " + data.fault;
+        warn.style.color = "var(--restricted)";
+        document.getElementById("clearFaultBtn").style.display = "";
+      } else {
+        document.getElementById("clearFaultBtn").style.display = "none";
+        if (liveConnected && pollLive.activeProfile && pollLive.activeProfile !== currentProfile) {
+          warn.style.display = "";
+          warn.style.color = "var(--ink-faint)";
+          warn.textContent = "Jog moves are bounded by the ACTIVE profile (“" + pollLive.activeProfile + "”), not the one you're viewing.";
+        } else {
+          warn.style.display = "none";
+        }
+      }
+
+      if (liveConnected) {
+        var panAbs = Number(data.pan_abs) || 0, tiltAbs = Number(data.tilt_abs) || 0;
+        liveMarker.pan = normalizePan(pantiltCfg.pan_invert ? -panAbs : panAbs);
+        liveMarker.tilt = clamp(pantiltCfg.tilt_invert ? -tiltAbs : tiltAbs, -90, 90);
+        liveMarker.valid = true;
+      } else {
+        liveMarker.valid = false;
+      }
+      updateActiveBanner();
+      render();
+    }).catch(function () {});
+  }
+
+  function refreshInvertFlags() {
+    return fetch("/get_config").then(function (r) { return r.json(); }).then(function (config) {
+      var p = (config && config.pantilt) || {};
+      pantiltCfg.pan_invert = parseInt(p.pan_invert, 10) === 1 ? 1 : 0;
+      pantiltCfg.tilt_invert = parseInt(p.tilt_invert, 10) === 1 ? 1 : 0;
+      pantiltCfg.home_pan_abs = Number(p.home_pan_abs) || 0;
+      pantiltCfg.home_tilt_abs = Number(p.home_tilt_abs) || 0;
+      updateHomeLine();
+    }).catch(function () {});
+  }
+
+  //  Home position readout + the ⌂ jog button's hover tooltip, both in the
+  //  same "absolute" (logical, post-invert) frame the main dashboard uses --
+  //  NOT the raw frame the sphere/breakpoints are in, since "home" is a
+  //  pantilt.py concept defined in that logical frame everywhere else.
+  function updateHomeLine() {
+    var pan = pantiltCfg.home_pan_abs.toFixed(1);
+    var tilt = pantiltCfg.home_tilt_abs.toFixed(1);
+    document.getElementById("homeLine").textContent = "home: pan " + pan + "° / tilt " + tilt + "° (absolute)";
+    document.getElementById("homeJogBtn").title = "Go to home: pan " + pan + "° / tilt " + tilt + "° (absolute)";
+  }
+
+  // ---------- init ----------
+
+  var urlParams = new URLSearchParams(window.location.search);
+  var requested = urlParams.get("profile") || "";
+
+  refreshInvertFlags();
+  resizeCanvas();
+  refreshProfileList(requested).then(function (names) {
+    var toLoad = requested && names.indexOf(requested) !== -1 ? requested : (names[0] || "");
+    if (toLoad) loadProfile(toLoad);
+    else updateActiveBanner();
+  });
+  pollLive();
+  setInterval(pollLive, 1000);
+})();
+</script>
+</body>
+</html>
